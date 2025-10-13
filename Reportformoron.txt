@@ -1,0 +1,154 @@
+Here’s a clean, professional status report formatted according to your provided Status Report Overview template — filled in with your current activities on the BOM (Bill of Materials) and derating work:
+
+
+---
+
+STATUS REPORT
+
+Purpose:
+
+Help execute programs more efficiently by tracking progress, identifying risks, and forecasting completion.
+
+Due: Monday by noon
+To: Manager, Program EE Manager, Lead
+
+
+---
+
+Richard’s Whiteboard
+
+1. What was done?
+
+Collected component information from SmartSearch to begin building the Bill of Materials (BOM).
+
+Started component derating analysis to assess electrical and thermal margins against design requirements.
+
+
+
+2. What needs to be done?
+
+Complete BOM population with missing component entries and verify part number accuracy.
+
+Continue derating process, prioritizing high-power and high-stress components.
+
+Begin documentation of derating assumptions and preliminary results.
+
+
+
+3. What is the plan?
+
+Finalize BOM collection by mid-week.
+
+Complete initial derating pass by end of next week for first review.
+
+Coordinate with Systems and Electrical Engineering for verification of component ratings and sourcing constraints.
+
+
+
+4. When will it be done?
+
+BOM completion target: Friday (this week)
+
+Initial derating review: End of next week
+
+
+
+5. Estimate to Complete (ETC)
+
+BOM data collection: ~6 staff-hours remaining
+
+Initial derating analysis: ~12 staff-hours remaining
+
+
+
+6. How are we doing?
+
+On track with schedule.
+
+No major blockers; awaiting confirmation on several part datasheets from procurement.
+
+
+
+
+
+---
+
+PLAN
+
+1. Schedule – Critical Milestones (Gold & Silver):
+
+Gold: BOM finalized and verified – due Friday
+
+Silver: Initial derating report drafted – due next week
+
+
+
+2. Budget – Baseline and Actuals:
+
+No cost deviations at this stage; analysis work remains within expected labor allocation.
+
+Tracking progress using Percent of Complete (POC).
+
+
+
+3. Staffing:
+
+Individual contributor effort (self); coordination with EE for part validation.
+
+
+
+
+
+---
+
+RISKS
+
+1. Identify:
+
+Missing or outdated component data in SmartSearch.
+
+Delays in obtaining datasheets from suppliers.
+
+
+
+2. Mitigate:
+
+Cross-check with legacy designs and verified internal part libraries.
+
+Engage procurement early to expedite datasheet retrieval.
+
+
+
+
+
+---
+
+CHANGE IMPACT ANALYSIS
+
+Technical: May impact selection of alternate components if derating margins are not met.
+
+Schedule: Potential 1–2 day delay if critical part data is unavailable.
+
+Budget: No financial impact expected unless re-sourcing is required.
+
+Staffing: No changes anticipated.
+
+
+
+---
+
+WEEKLY HORIZON EFFORT
+
+Timeframe	Focus	Estimated Effort
+
+Next Week (80%)	Finalize BOM, complete initial derating, prepare review slides	80%
+Next Month (15%)	Perform second-pass derating and design verification integration	15%
+3 Month (4%)	Support ongoing design validation and part stress updates	4%
+Long Term (>90 days)	Documentation and lessons learned for future designs	1%
+
+
+
+---
+
+Would you like me to tailor this for Collins Aerospace formatting (e.g., include RVS 2.0 references, project title, and work package code)? I can make it look like a real internal deliverable for weekly submission.
+

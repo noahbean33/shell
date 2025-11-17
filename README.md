@@ -1,51 +1,69 @@
-# Code_with_Kiro_Hackathon
-Smallsh with Spec-Driven Development and Statistical Evaluation
+# smallsh
 
-## Overview
-This repository is a submission for the Code with Kiro Hackathon. It explores how Kiro’s spec-driven workflow impacts software quality and consistency by implementing a Unix-like shell in C ("smallsh") and validating the approach with a reproducible evaluation plan.
+A simple shell written in C that implements a subset of features from shells like `bash`.
 
-The project builds on the classic "smallsh" assignment: a miniature shell that supports a subset of bash-like features. We implement and compare two approaches:
+## Features
 
-- Baseline: a conventional/assignment-style implementation (original_smallsh/).
-- Kiro-guided: a structured, spec-driven implementation (kiro_smallsh/).
+*   Provides a prompt for running commands.
+*   Handles blank lines and comments (lines beginning with `#`).
+*   Includes three built-in commands: `exit`, `cd`, and `status`.
+*   Executes other commands by creating new processes using the `exec()` family of functions.
+*   Supports input and output redirection (`<` and `>`).
+*   Supports running commands in both the foreground and background (`&`).
+*   Implements custom handlers for `SIGINT` (Ctrl+C) and `SIGTSTP` (Ctrl+Z) signals.
 
-## Smallsh Requirements (scope)
-Derived from the original assignment brief in original_smallsh/project_description.txt:
+## Usage
 
-- Provide a prompt (use :) for each command line.
-- Handle blank lines and comments (lines starting with #).
-- Built-in commands: exit, cd, status.
-- Execute other commands via exec* in child processes.
-- Support input/output redirection.
-- Support foreground and background processes.
-- Implement custom signal handling for SIGINT and SIGTSTP.
+The general syntax for a command is:
 
-## Repository Structure
-- kiro_smallsh/
-  - .kiro/ — Kiro specs/config to demonstrate spec-driven development.
-  - smallsh.c — Kiro-guided shell implementation.
-- original_smallsh/
-  - project_description.txt — original assignment scope and requirements.
-  - original_smallsh.c.txt — reference/baseline implementation artifact.
-- README.md — this document.
-- LICENSE — project license.
+```
+command [arg1 arg2 ...] [< input_file] [> output_file] [&]
+```
 
-## Build & Run (Linux)
+*   **Command Prompt:** The shell uses the colon `:` symbol as the prompt.
+*   **Comments & Blank Lines:** Lines starting with `#` and blank lines are ignored.
+*   **Built-in Commands:**
+    *   `exit`: Exits the shell, terminating any running jobs.
+    *   `cd [directory]`: Changes the current working directory. With no arguments, it changes to the `HOME` directory.
+    *   `status`: Prints the exit status or terminating signal of the last foreground process.
+*   **Executing Other Commands:**
+    *   Any command that is not built-in is executed in a new process.
+    *   The shell uses the `PATH` environment variable to find executables.
+*   **I/O Redirection:**
+    *   `< input_file`: Redirects standard input from `input_file`.
+    *   `> output_file`: Redirects standard output to `output_file`.
+*   **Background Processes:**
+    *   Appending `&` to a command runs it in the background.
+    *   The shell will print the process ID of the background job.
+    *   Input/output for background commands is redirected to `/dev/null` if not otherwise specified.
+*   **Signal Handling:**
+    *   `SIGINT` (Ctrl+C): Ignored by the shell and background processes. Terminates a foreground process.
+    *   `SIGTSTP` (Ctrl+Z): Toggles a foreground-only mode where the `&` operator is ignored.
 
-gcc -std=c99 -Wall -Wextra -o smallsh smallsh.c
-./smallsh
+## Example
 
-
-## How Kiro Is Used
-- Spec-driven scaffolding and iteration are captured under kiro_smallsh/.kiro/ (required by hackathon rules).
-- Kiro assists with:
-  - Turning specs into structured C modules (enums/structs) and handlers.
-  - Iterative refinement via inline AI coding and multi-modal chat.
-  - Maintaining consistency with a fixed rubric and test steps.
-
-## License
-This repository is open-sourced under the license in LICENSE.
-
-## Acknowledgments
-- Original smallsh assignment concept referenced from original_smallsh/project_description.txt.
-- Hackathon brief summarized from code_with_kiro_hackathon_description.txt.
+```
+$ smallsh
+: ls
+junk   smallsh    smallsh.c
+: ls > junk
+: status
+exit value 0
+: cat junk
+junk
+smallsh
+smallsh.c
+: sleep 5
+^Cterminated by signal 2
+: sleep 15 &
+background pid is 4923
+: 
+background pid 4923 is done: exit value 0
+: ^Z
+Entering foreground-only mode (& is now ignored)
+: sleep 5 &
+: ^Z
+Exiting foreground-only mode
+: exit
+$
+```

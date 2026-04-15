@@ -1,23 +1,40 @@
-LSH
-===
+# smallsh
 
-LSH is a simple implementation of a shell in C, and it is the subject of a
-tutorial on [my website][1].  It demonstrates the basics of how a shell works.
-That is: read, parse, fork, exec, and wait.  Since its purpose is demonstration
-(not feature completeness or even fitness for casual use), it has many
-limitations, including:
+A small Unix shell written in C and ARM assembly.
 
-* Commands must be on a single line.
-* Arguments must be separated by whitespace.
-* No quoting arguments or escaping whitespace.
-* No piping or redirection.
-* Only builtins are: `cd`, `help`, `exit`.
+## Overview
 
-Running
--------
+**smallsh** implements a subset of common shell functionality, including:
 
-Use `gcc -o lsh src/main.c` to compile, and then `./lsh` to run. If you would
-like to use the standard-library based implementation of `lsh_read_line()`, then
-you can do: `gcc -DLSH_USE_STD_GETLINE -o lsh src/main.c`.
+- An interactive command prompt
+- Built-in commands: `exit`, `cd`, and `status`
+- Execution of external commands via `fork`/`exec`/`waitpid`
+- Input and output redirection (`<` and `>`)
+- Foreground and background process execution (`&`)
+- Signal handling for `SIGINT` (Ctrl-C) and `SIGTSTP` (Ctrl-Z) with a foreground-only mode toggle
 
+The project contains two implementations:
 
+- **`src/main.c`** — Full-featured shell in C
+- **`src/shell.s`** — Minimal shell in ARM assembly demonstrating low-level syscalls (`read`, `write`, `fork`, `execve`, `wait4`)
+
+## Building
+
+```bash
+# C version
+gcc --std=c23 -o smallsh src/main.c
+
+# ARM assembly version (requires an ARM toolchain)
+as -o shell.o src/shell.s && ld -o shell shell.o
+```
+
+## Usage
+
+```
+$ ./smallsh
+: ls
+: echo hello > out.txt
+: cat < out.txt
+: sleep 10 &
+: exit
+```

@@ -8,27 +8,28 @@
 #include <fcntl.h>         // For open and dup2
 #include <signal.h>        // For handling signals like SIGINT
 #include <errno.h>         // For error numbers
+#include <stdbool.h>      // For bool (C23 keyword, header kept for portability)
 
 // Macros 
 // Your shell must support command lines with a maximum length of 2048 characters, and a maximum of 512 arguments.
-#define MAX_CMD_LENGTH 2048      // Max length of a command line
-#define MAX_ARGS 512             // Max number of arguments
-#define MAX_BG_PROCS 100         // Max background processes
+#define MAX_CMD_LENGTH 2048              // Max length of a command line
+#define MAX_ARGS 512                     // Max number of arguments
+#define MAX_BG_PROCS 100                 // Max background processes
 #define ENTERING_MSG "\nEntering foreground-only mode (& is now ignored)\n: "  // Message for entering foreground-only mode
-#define ENTERING_LEN 52          // Length of entering message
+constexpr int ENTERING_LEN = sizeof(ENTERING_MSG) - 1;          // Length of entering message
 #define EXITING_MSG "\nExiting foreground-only mode\n: "  // Message for exiting foreground-only mode
-#define EXITING_LEN 32           // Length of exiting message
+constexpr int EXITING_LEN = sizeof(EXITING_MSG) - 1;           // Length of exiting message
 
 // Global Variables - things shared across the program
 int last_status = 0;             // Stores exit status of last foreground process
-int foreground_only_mode = 0;    // Flag for foreground-only mode (1 = on)
+volatile sig_atomic_t foreground_only_mode = 0;    // Flag for foreground-only mode (1 = on)
 pid_t background_processes[MAX_BG_PROCS];  // Array of background process IDs
 int background_count = 0;        // Number of background processes
 char command_line[MAX_CMD_LENGTH];  // Buffer for user input
 char *arguments[MAX_ARGS + 1];   // Array of command arguments
-char *input_file = NULL;         // File for input redirection
-char *output_file = NULL;        // File for output redirection
-int run_in_background = 0;       // Flag for background execution (1 = yes)
+char *input_file = nullptr;         // File for input redirection
+char *output_file = nullptr;        // File for output redirection
+bool run_in_background = false;       // Flag for background execution (1 = yes)
 int argument_count = 0;          // Number of arguments parsed
 pid_t child_pid;                 // PID of the child process
 
@@ -50,15 +51,15 @@ void set_child_signal_tstp(void);
 void setup_child_signals(void);
 void redirect_input(void);
 void redirect_output(void);
-void execute_child(void);
+[[noreturn]] void execute_child(void);
 void handle_background(void);
 void handle_foreground(void);
 void execute_command(void);
 void show_prompt(void);
 void get_input(void);
-int is_valid_input(void);
+bool is_valid_input(void);
 void kill_background(void);
-void execute_exit(void);
+[[noreturn]] void execute_exit(void);
 void execute_cd(void);
 void execute_status(void);
 void run_command(void);
@@ -123,7 +124,7 @@ void set_ignore_signal_int()
     struct sigaction action = {0};
     action.sa_handler = SIG_IGN;  // Ignore SIGINT
     sigfillset(&action.sa_mask);  // Block other signals during handler
-    sigaction(SIGINT, &action, NULL);  // Apply the setting
+    sigaction(SIGINT, &action, nullptr);  // Apply the setting
 }
 
 /*
@@ -137,7 +138,8 @@ void set_signal_tstp()
     struct sigaction action = {0};
     action.sa_handler = handle_signal_tstp;  // Use handler
     sigfillset(&action.sa_mask);  // Block other signals
-    sigaction(SIGTSTP, &action, NULL);  // Set it up
+    action.sa_flags = SA_RESTART;  // Restart interrupted syscalls (e.g. fgets)
+    sigaction(SIGTSTP, &action, nullptr);  // Set it up
 }
 
 /*
@@ -200,7 +202,7 @@ void check_one_background(int i)
 */
 void check_background()
 {
-    for (int i = 0; i < background_count; i++)  // Check all background processes for completion 
+    for (int i = background_count - 1; i >= 0; i--)  // Iterate backwards to avoid skipping after removal
     {
         check_one_background(i); 
     }
@@ -215,9 +217,9 @@ void check_background()
 void reset_globals()
 {
     argument_count = 0;    // Reset args
-    input_file = NULL;     // Reset input file
-    output_file = NULL;    // Reset output file
-    run_in_background = 0; // Reset background
+    input_file = nullptr;  // Reset input file
+    output_file = nullptr; // Reset output file
+    run_in_background = false; // Reset background
 }
 
 /*
@@ -231,28 +233,22 @@ void check_token(char *token)
 {
     if (strcmp(token, "<") == 0)
     {
-        input_file = strtok(NULL, " ");  // Set input redirection
+        input_file = strtok(nullptr, " ");  // Set input redirection
+    }
+    else if (strcmp(token, ">") == 0)
+    {
+        output_file = strtok(nullptr, " ");  // Set output redirection
+    }
+    else if (strcmp(token, "&") == 0)
+    {
+        if (!strtok(nullptr, " "))  // If & is last
+        {
+            run_in_background = true;  // Background mode
+        }
     }
     else
     {
-        if (strcmp(token, ">") == 0)
-        {
-            output_file = strtok(NULL, " ");  // Set output redirection
-        }
-        else
-        {
-            if (strcmp(token, "&") == 0)
-            {
-                if (!strtok(NULL, " "))  // If & is last
-                {
-                    run_in_background = 1;  // Background mode
-                }
-            }
-            else
-            {
-                arguments[argument_count++] = token;  // Add as argument
-            }
-        }
+        arguments[argument_count++] = token;  // Add as argument
     }
 }
 
@@ -287,9 +283,9 @@ void parse_input()
     while (token)
     {
         parse_next_token(token);  // Handle the token
-        token = strtok(NULL, " "); // Get next token
+        token = strtok(nullptr, " "); // Get next token
     }
-    arguments[argument_count] = NULL;  // End the array
+    arguments[argument_count] = nullptr;  // End the array
 }
 
 /*
@@ -303,7 +299,7 @@ void set_child_signal_int(int bg)
 {
     struct sigaction sa = {0};
     sa.sa_handler = bg ? SIG_IGN : SIG_DFL;  // default to foreground and ignore background
-    sigaction(SIGINT, &sa, NULL);  // Set child SIGINT
+    sigaction(SIGINT, &sa, nullptr);  // Set child SIGINT
 }
 
 /*
@@ -316,7 +312,7 @@ void set_child_signal_tstp()
 {
     struct sigaction sa = {0};
     sa.sa_handler = SIG_IGN;  // Ignore SIGTSTP
-    sigaction(SIGTSTP, &sa, NULL);  // Set child TSTP
+    sigaction(SIGTSTP, &sa, nullptr);  // Set child TSTP
 }
 
 /*
@@ -362,7 +358,7 @@ Both stdin and stdout for a command can be redirected at the same time (see exam
             fprintf(stderr, "cannot open %s for input\n", input_file);
             exit(1);
         }
-        dup2(fd, 0);  // Redirect stdin
+        dup2(fd, STDIN_FILENO);  // Redirect stdin
         close(fd);    // Close file
     }
     else
@@ -370,7 +366,7 @@ Both stdin and stdout for a command can be redirected at the same time (see exam
         if (run_in_background)
         {
             int fd = open("/dev/null", O_RDONLY);  // Use /dev/null
-            dup2(fd, 0);  // Redirect stdin
+            dup2(fd, STDIN_FILENO);  // Redirect stdin
             close(fd);    // Close file
         }
     }
@@ -407,7 +403,7 @@ Both stdin and stdout for a command can be redirected at the same time (see exam
             fprintf(stderr, "cannot open %s for output\n", output_file);
             exit(1);  
         }
-        dup2(fd, 1);  // Redirect stdout
+        dup2(fd, STDOUT_FILENO);  // Redirect stdout
         close(fd);    // Close file
     }
     else
@@ -415,7 +411,7 @@ Both stdin and stdout for a command can be redirected at the same time (see exam
         if (run_in_background)
         {
             int fd = open("/dev/null", O_WRONLY);  // Use /dev/null
-            dup2(fd, 1);  // Redirect stdout
+            dup2(fd, STDOUT_FILENO);  // Redirect stdout
             close(fd);    // Close it
         }
     }
@@ -507,18 +503,15 @@ A child process must terminate after running a command (whether the command is s
     {
         execute_child();  // Run it
     }
-    else
+    else if (child_pid > 0)  // Parent process
     {
-        if (child_pid > 0)  // Parent process
+        if (run_in_background)
         {
-            if (run_in_background)
-            {
-                handle_background();  // Handle background
-            }
-            else
-            {
-                handle_foreground();  // Handle Foreground
-            }
+            handle_background();  // Handle background
+        }
+        else
+        {
+            handle_foreground();  // Handle Foreground
         }
     }
 }
@@ -567,7 +560,7 @@ void show_prompt()
 void get_input()
 {
     fgets(command_line, MAX_CMD_LENGTH, stdin);  // Get the line
-    command_line[strcspn(command_line, "\n")] = 0;  // Remove newline
+    command_line[strcspn(command_line, "\n")] = '\0';  // Remove newline
 }
 
 /*
@@ -576,30 +569,13 @@ void get_input()
 * Parameters: None
 * Return: 1 if valid, 0 if not
 */
-int is_valid_input()
+bool is_valid_input()
 { // 2. Comments & Blank Lines
-    int result;
     // Any line that begins with the # character is a comment line and must be ignored. 
     // Mid-line comments, such as the C-style //, will not be supported.
-
-    if (command_line[0] != '#')  // Not a comment
-    {
-        // A blank line (one without any commands) must also do nothing.
-        if (command_line[0] != ' ')  // Not a blank space
-        {
-            result = 1;  // Good input
-        }
-        else
-        {
-            result = 0;  // Bad input
-        }
-    }
-    else
-    {
-        result = 0;  // Comment
-    }
+    // A blank line (one without any commands) must also do nothing.
     // Your shell must just re-prompt for another command when it receives either a blank line or a comment line.
-    return result;  // Return result
+    return command_line[0] != '#' && command_line[0] != ' ' && command_line[0] != '\0';
 }
 
 /*
@@ -669,12 +645,9 @@ void execute_status()
     {
         printf("exit value %d\n", WEXITSTATUS(last_status));  // Show exit value
     }
-    else
+    else if (WIFSIGNALED(last_status))
     {
-        if (WIFSIGNALED(last_status))
-        {
-            printf("terminated by signal %d\n", WTERMSIG(last_status));  // Show signal
-        }
+        printf("terminated by signal %d\n", WTERMSIG(last_status));  // Show signal
     }
     fflush(stdout);
         /*
@@ -696,23 +669,17 @@ void run_command()
     {
         execute_exit();  // Exit command
     }
+    else if (!strcmp(arguments[0], "cd"))
+    {
+        execute_cd();  // CD command
+    }
+    else if (!strcmp(arguments[0], "status"))
+    {
+        execute_status();  // Status command
+    }
     else
     {
-        if (!strcmp(arguments[0], "cd"))
-        {
-            execute_cd();  // CD command
-        }
-        else
-        {
-            if (!strcmp(arguments[0], "status"))
-            {
-                execute_status();  // Status command
-            }
-            else
-            {
-                execute_command();  // other commands
-            }
-        }
+        execute_command();  // other commands
     }
 }
 
@@ -738,7 +705,7 @@ void main_loop()
 
         if (foreground_only_mode)
         {
-            run_in_background = 0;  // Force foreground
+            run_in_background = false;  // Force foreground
         }
 
         if (argument_count == 0)  // No args
@@ -782,8 +749,6 @@ https://www.geeksforgeeks.org/making-linux-shell-c/
 https://www.geeksforgeeks.org/signals-c-language/
 https://www.geeksforgeeks.org/conditional-or-ternary-operator-in-c/
 https://www.tutorialspoint.com/c_standard_library/c_function_fflush.htm
-CS 374 Assignments 1, 2, 3
-Canvas Modules 3, 4, 5, 6, 7, 8
 R. H. Arpaci-Dusseau and A. C. Arpaci-Dusseau, Operating Systems: Three Easy Pieces. Madison, WI, USA: Arpaci-Dusseau Books, 2018.
 M. Kerrisk, The Linux Programming Interface: A Linux and UNIX System Programming Handbook. San Francisco, CA, USA: No Starch Press, 2010.
 B. W. Kernighan and D. M. Ritchie, The C Programming Language, 2nd ed. Englewood Cliffs, NJ: Prentice Hall, 1988.
